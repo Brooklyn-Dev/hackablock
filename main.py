@@ -1,5 +1,15 @@
+from datetime import datetime
+import logging
 import os
 import time
+
+logging.basicConfig(
+    filename="hackablock.log",
+    filemode="a",
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO
+)
 
 from dotenv import load_dotenv
 import requests
@@ -15,6 +25,10 @@ CHECK_INTERVAL = 60  # sec
 
 class HackatimeError(Exception):
     pass
+
+def timestamped_print(msg: str) -> None:
+    time_str = datetime.now().strftime("%H:%M:%S")
+    print(f"[{time_str}] {msg}")
 
 def get_coding_time() -> int:
     try:
@@ -39,9 +53,11 @@ def main() -> None:
     while True:
         try:
             seconds = get_coding_time()
-            print(f"You've coded {seconds//60} minutes today.")
+            logging.info(f"Fetched coding time: {seconds} seconds")
+            timestamped_print(f"✅ You've coded {seconds//60} minutes today.")
         except HackatimeError as e:
-            print(f"Error fetching coding time: {e}")
+            logging.error(f"Fetch failed: {e}")
+            timestamped_print(f"❌ Could not fetch coding time. See 'hackablock.log'.")
         
         time.sleep(CHECK_INTERVAL)
     
