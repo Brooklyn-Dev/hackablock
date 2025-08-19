@@ -50,20 +50,31 @@ def get_coding_time() -> int:
         raise HackatimeError(f"Bad data in API response: {e}") from e
 
 def main() -> None:
+    total_seconds = 0
+    last_seconds = 0
+    
     while True:
         try:
             seconds = get_coding_time()
             logging.info(f"Fetched coding time: {seconds} seconds")
-            minutes = seconds // 60
+            
+            if seconds >= last_seconds:
+                total_seconds += seconds - last_seconds
+            else:
+                # Midnight reset
+                total_seconds += seconds
+            
+            minutes = total_seconds // 60
+            last_seconds = seconds
             
             if minutes < REQUIRED_MINUTES:
                 remaining = REQUIRED_MINUTES - minutes
                 logging.info(f"{minutes} minutes recorded, {remaining} more required to unblock apps.")
                 timestamped_print(f"⏳ You need {remaining} more minutes to meet today's requirement.")
-                sleep_time = max(remaining * 60, 60)
+                sleep_time = max(remaining * 60, CHECK_INTERVAL)
             else:
                 logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
-                timestamped_print(f"🎉 Requirement met! You've coded {minutes} minutes today. Re-enabling blocked apps.")
+                timestamped_print(f"🎉 Time requirement met! You've coded {minutes} minutes today. Unblocking apps.")
                 return None
             
         except HackatimeError as e:
