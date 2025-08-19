@@ -18,7 +18,7 @@ load_dotenv()
 
 WAKATIME_API_KEY = os.getenv("WAKATIME_API_KEY")
 BLOCKED_APPS = os.getenv("BLOCKED_APPS")
-REQUIRED_MINUTES = os.getenv("REQUIRED_MINUTES")
+REQUIRED_MINUTES = int(os.getenv("REQUIRED_MINUTES"))
 
 HACKATIME_API_URL = "https://hackatime.hackclub.com/api/hackatime/v1"
 CHECK_INTERVAL = 60  # sec
@@ -54,12 +54,24 @@ def main() -> None:
         try:
             seconds = get_coding_time()
             logging.info(f"Fetched coding time: {seconds} seconds")
-            timestamped_print(f"✅ You've coded {seconds//60} minutes today.")
+            minutes = seconds // 60
+            
+            if minutes < REQUIRED_MINUTES:
+                remaining = REQUIRED_MINUTES - minutes
+                logging.info(f"{minutes} minutes recorded, {remaining} more required to unblock apps.")
+                timestamped_print(f"⏳ You need {remaining} more minutes to meet today's requirement.")
+                sleep_time = max(remaining * 60, 60)
+            else:
+                logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
+                timestamped_print(f"🎉 Requirement met! You've coded {minutes} minutes today. Re-enabling blocked apps.")
+                return None
+            
         except HackatimeError as e:
             logging.error(f"Fetch failed: {e}")
             timestamped_print(f"❌ Could not fetch coding time. See 'hackablock.log'.")
-        
-        time.sleep(CHECK_INTERVAL)
+            sleep_time = CHECK_INTERVAL
+
+        time.sleep(sleep_time)
     
 if __name__ == "__main__":
     main()
