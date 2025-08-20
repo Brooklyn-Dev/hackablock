@@ -20,13 +20,14 @@ import wmi
 load_dotenv()
 
 WAKATIME_API_KEY = os.getenv("WAKATIME_API_KEY")
-BLOCKED_APPS = os.getenv("BLOCKED_APPS")
+BLOCKED_APPS = os.getenv("BLOCKED_APPS").split(",")
 REQUIRED_MINUTES = int(os.getenv("REQUIRED_MINUTES"))
 
 HACKATIME_API_URL = "https://hackatime.hackclub.com/api/hackatime/v1"
 CHECK_INTERVAL = 60  # sec
 
 requirement_met_event = threading.Event()
+shutdown_event = threading.Event()
 
 class HackatimeError(Exception):
     pass
@@ -61,11 +62,11 @@ def watch_processes() -> None:
         c = wmi.WMI()
         proc_watcher = c.Win32_Process.watch_for("creation")
         
-        while not requirement_met_event.is_set():
+        while not (requirement_met_event.is_set() or shutdown_event.is_set()):
             try:
                 new_proc = proc_watcher(timeout_ms=5000)
                 
-                if not requirement_met_event.is_set() and new_proc.Name.lower() in BLOCKED_APPS:
+                if not (requirement_met_event.is_set() or shutdown_event.is_set()) and new_proc.Name.lower() in BLOCKED_APPS:
                     try:
                         new_proc.Terminate()
                         timestamped_print(f"🚫 Blocked {new_proc.Name}")
@@ -78,14 +79,20 @@ def watch_processes() -> None:
             except wmi.x_wmi_timed_out:
                 continue
             except wmi.x_wmi as e:
-                logging.error(f"WMI error in process watcher: {e}")
-                time.sleep(3)
+                if not shutdown_event.is_set():
+                    logging.error(f"WMI error in process watcher: {e}")
+                    time.sleep(3)
             except Exception as e:
-                logging.error(f"Unexpected error in process watcher: {e}")
-                time.sleep(1)
+                if not shutdown_event.is_set():
+                    logging.error(f"Unexpected error in process watcher: {e}")
+                    time.sleep(1)
             
-        logging.info(f"Process watcher stopped due to requirement being met.")
-        timestamped_print("✅ Process watcher stopped.")
+        if requirement_met_event.is_set():
+            logging.info(f"Process watcher stopped due to requirement being met.")
+            timestamped_print("✅ Process watcher stopped - requirement met.")
+        elif shutdown_event.is_set():
+            logging.info(f"Process watcher stopped due to shutdown being requested.")
+            timestamped_print("✅ Process watcher stopped - shutdown requested.")
                 
     except wmi.x_wmi as e:
         logging.error(f"Failed to initialise WMI: {e}")
@@ -106,48 +113,66 @@ def main() -> None:
     watcher_thread = threading.Thread(target=watch_processes, daemon=False)
     watcher_thread.start()
     
-    while True:
-        try:
-            seconds = get_coding_time()
-            logging.info(f"Fetched coding time: {seconds} seconds")
-            
-            if seconds >= last_seconds:
-                total_seconds += seconds - last_seconds
-            else:
-                # Midnight reset
-                total_seconds += seconds
-            
-            minutes = total_seconds // 60
-            last_seconds = seconds
-            
-            if minutes < REQUIRED_MINUTES:
-                remaining = REQUIRED_MINUTES - minutes
-                logging.info(f"{minutes} minutes recorded, {remaining} more required to unblock apps.")
-                timestamped_print(f"⏳ You need {remaining} more minutes to meet today's requirement.")
-    
-                sleep_time = max(remaining * 60, CHECK_INTERVAL)
-            else:
-                requirement_met_event.set()
-                logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
-                timestamped_print(f"🎉 Time requirement met! You've coded {minutes} minutes today.")
+    try:
+        while True:
+            try:
+                seconds = get_coding_time()
+                logging.info(f"Fetched coding time: {seconds} seconds")
                 
-                timestamped_print(f"👀 Shutting down process watcher...")
-                watcher_thread.join(timeout=5)
+                if seconds >= last_seconds:
+                    total_seconds += seconds - last_seconds
+                else:
+                    # Midnight reset
+                    total_seconds += seconds
                 
-                if watcher_thread.is_alive():
-                    logging.warning("Watcher thread didn't exit within timeout")
-                    timestamped_print("⚠️ Process watcher didn't shut down cleanly.")
+                minutes = total_seconds // 60
+                last_seconds = seconds
                 
-                logging.info("Terminating hackablock...")
-                timestamped_print("🏁 Session complete. Exiting hackablock...")
-                return None
-            
-        except HackatimeError as e:
-            logging.error(f"Fetch failed: {e}")
-            timestamped_print(f"❌ Could not fetch coding time. See 'hackablock.log'.")
-            sleep_time = CHECK_INTERVAL
+                if minutes < REQUIRED_MINUTES:
+                    remaining = REQUIRED_MINUTES - minutes
+                    logging.info(f"{minutes} minutes recorded, {remaining} more required to unblock apps.")
+                    timestamped_print(f"⏳ You need {remaining} more minutes to meet today's requirement.")
+        
+                    sleep_time = max(remaining * 60, CHECK_INTERVAL)
+                else:
+                    requirement_met_event.set()
+                    logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
+                    timestamped_print(f"🎉 Time requirement met! You've coded {minutes} minutes today.")
+                    
+                    timestamped_print(f"👀 Shutting down process watcher...")
+                    watcher_thread.join(timeout=5)
+                    
+                    if watcher_thread.is_alive():
+                        logging.warning("Watcher thread didn't exit within timeout")
+                        timestamped_print("⚠️ Process watcher didn't shut down cleanly.")
+                    
+                    logging.info("Terminating hackablock...")
+                    timestamped_print("🏁 Session complete. Exiting hackablock...")
+                    return None
+                
+            except HackatimeError as e:
+                logging.error(f"Fetch failed: {e}")
+                timestamped_print(f"❌ Could not fetch coding time. See 'hackablock.log'.")
+                sleep_time = CHECK_INTERVAL
 
-        time.sleep(sleep_time)
+            time.sleep(sleep_time)
+    
+    except KeyboardInterrupt:
+        timestamped_print("🛑 Recieved interrupt signal. Shutting down...")
+        logging.info("Received KeyboardInterrupt. Shutting down gracefully.")
+        
+        shutdown_event.set()
+        
+        timestamped_print(f"👀 Shutting down process watcher...")
+        watcher_thread.join(timeout=5)
+        
+        if watcher_thread.is_alive():
+            logging.warning("Watcher thread didn't exit within timeout")
+            timestamped_print("⚠️ Process watcher didn't shut down cleanly.")
+        
+        logging.info("Terminating hackablock...")
+        timestamped_print("👋 Exiting hackablock...")
+        return None
     
 if __name__ == "__main__":
     main()
