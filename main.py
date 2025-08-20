@@ -32,6 +32,9 @@ shutdown_event = threading.Event()
 class HackatimeError(Exception):
     pass
 
+def pluralise(text: str, value: int) -> str:
+    return f"{text}{"s" if value > 1 else ""}"
+
 def timestamped_print(msg: str) -> None:
     time_str = datetime.now().strftime("%H:%M:%S")
     print(f"[{time_str}] {msg}")
@@ -130,14 +133,14 @@ def main() -> None:
                 
                 if minutes < REQUIRED_MINUTES:
                     remaining = REQUIRED_MINUTES - minutes
-                    logging.info(f"{minutes} minutes recorded, {remaining} more required to unblock apps.")
-                    timestamped_print(f"⏳ You need {remaining} more minutes to meet today's requirement.")
+                    logging.info(f"{minutes} {pluralise("minute", minutes)} recorded, {remaining} more required to unblock apps.")
+                    timestamped_print(f"⏳ You need {remaining} more {pluralise("minute", remaining)} to meet today's requirement.")
         
                     sleep_time = max(remaining * 60, CHECK_INTERVAL)
                 else:
                     requirement_met_event.set()
                     logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
-                    timestamped_print(f"🎉 Time requirement met! You've coded {minutes} minutes today.")
+                    timestamped_print(f"🎉 Time requirement met! You've coded {minutes} {pluralise("minute", minutes)} today.")
                     
                     timestamped_print(f"👀 Shutting down process watcher...")
                     watcher_thread.join(timeout=5)
