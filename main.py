@@ -13,6 +13,7 @@ logging.basicConfig(
 )
 
 from dotenv import load_dotenv
+import psutil
 import pythoncom
 import requests
 import wmi
@@ -72,7 +73,7 @@ def watch_processes() -> None:
                 if not (requirement_met_event.is_set() or shutdown_event.is_set()) and new_proc.Name.lower() in BLOCKED_APPS:
                     try:
                         new_proc.Terminate()
-                        timestamped_print(f"🚫 Blocked {new_proc.Name}")
+                        timestamped_print(f"🚫 Blocked {new_proc.Name} from opening")
                         logging.info(f"Terminated process: {new_proc.Name} (pid={new_proc.ProcessId})")
                     except (OSError, AttributeError) as e:
                         logging.warning(f"Could not terminate {new_proc.Name}: {e}")
@@ -113,7 +114,36 @@ def shutdown_watcher(watcher_thread: threading.Thread) -> None:
     if watcher_thread.is_alive():
         logging.warning("Watcher thread didn't exit within timeout")
         timestamped_print("⚠️ Process watcher didn't shut down cleanly.")
-            
+
+def block_running_processes() -> None:
+    killed_apps = set()
+    failed_kills = []
+    
+    for proc in psutil.process_iter(["pid", "name"]):
+        try:
+            proc_name, proc_pid = proc.info["name"], proc.info["pid"]
+            if proc_name and proc_name.lower() in BLOCKED_APPS:         
+                logging.info(f"Killing running process: {proc_name} (pid={proc_pid})")
+                proc.kill()
+                killed_apps.add(proc_name)
+                
+        except psutil.AccessDenied:
+            logging.warning(f"Access denied killing {proc_name} (pid={proc_pid})")
+            failed_kills.append(f"{proc_name} (access denied)")
+        except (psutil.NoSuchProcess, psutil.ProcessLookupError):
+            continue
+
+    if killed_apps:
+        apps_list = ", ".join(killed_apps)
+        timestamped_print(f"🚫 Blocked running apps: {apps_list}")
+    
+    if failed_kills:
+        failed_list = ", ".join(failed_kills)
+        timestamped_print(f"⚠️ Could not kill: {failed_list}")
+    
+    if not killed_apps and not failed_kills:
+        timestamped_print("✅ No blocked apps currently running")
+
 def main() -> None:
     total_seconds = 0
     last_seconds = 0
@@ -123,6 +153,8 @@ def main() -> None:
     
     watcher_thread = threading.Thread(target=watch_processes, daemon=False)
     watcher_thread.start()
+    
+    block_running_processes()
     
     try:
         while True:
