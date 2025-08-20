@@ -1,16 +1,15 @@
 from datetime import datetime
 import logging
-import os
 import threading
 import time
 
-from dotenv import load_dotenv
 import psutil
 import pythoncom
 import requests
 import wmi
 
-from tray import Tray
+from .config import WAKATIME_API_KEY, BLOCKED_APPS, REQUIRED_MINUTES
+from .tray import Tray
 
 logging.basicConfig(
     filename="hackablock.log",
@@ -20,19 +19,13 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-load_dotenv()
-
-WAKATIME_API_KEY = os.getenv("WAKATIME_API_KEY")
-BLOCKED_APPS = os.getenv("BLOCKED_APPS", "").split(",")
-REQUIRED_MINUTES = int(os.getenv("REQUIRED_MINUTES", 60))
-
 HACKATIME_API_URL = "https://hackatime.hackclub.com/api/hackatime/v1"
 CHECK_INTERVAL = 60  # sec
 
 requirement_met_event = threading.Event()
 shutdown_event = threading.Event()
 
-tray = None
+tray: Tray | None = None
 
 class HackatimeError(Exception):
     pass

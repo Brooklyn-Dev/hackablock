@@ -31,7 +31,7 @@ class Tray:
             return
         
         def run_tray() -> None:
-            image = Image.open("./favicon.ico")
+            image = Image.open("./assets/favicon.ico")
             menu = self._create_menu()
             
             self.icon = Icon("hb", image, "hackablock", menu)
