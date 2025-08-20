@@ -4,6 +4,14 @@ import os
 import threading
 import time
 
+from dotenv import load_dotenv
+import psutil
+import pythoncom
+import requests
+import wmi
+
+from tray import Tray
+
 logging.basicConfig(
     filename="hackablock.log",
     filemode="a",
@@ -12,23 +20,19 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-from dotenv import load_dotenv
-import psutil
-import pythoncom
-import requests
-import wmi
-
 load_dotenv()
 
 WAKATIME_API_KEY = os.getenv("WAKATIME_API_KEY")
-BLOCKED_APPS = os.getenv("BLOCKED_APPS").split(",")
-REQUIRED_MINUTES = int(os.getenv("REQUIRED_MINUTES"))
+BLOCKED_APPS = os.getenv("BLOCKED_APPS", "").split(",")
+REQUIRED_MINUTES = int(os.getenv("REQUIRED_MINUTES", 60))
 
 HACKATIME_API_URL = "https://hackatime.hackclub.com/api/hackatime/v1"
 CHECK_INTERVAL = 60  # sec
 
 requirement_met_event = threading.Event()
 shutdown_event = threading.Event()
+
+tray = None
 
 class HackatimeError(Exception):
     pass
@@ -92,10 +96,10 @@ def watch_processes() -> None:
                     time.sleep(1)
             
         if requirement_met_event.is_set():
-            logging.info(f"Process watcher stopped due to requirement being met.")
+            logging.info("Process watcher stopped due to requirement being met.")
             timestamped_print("✅ Process watcher stopped - requirement met.")
         elif shutdown_event.is_set():
-            logging.info(f"Process watcher stopped due to shutdown being requested.")
+            logging.info("Process watcher stopped due to shutdown being requested.")
             timestamped_print("✅ Process watcher stopped - shutdown requested.")
                 
     except wmi.x_wmi as e:
@@ -108,7 +112,7 @@ def watch_processes() -> None:
         pythoncom.CoUninitialize()
 
 def shutdown_watcher(watcher_thread: threading.Thread) -> None:
-    timestamped_print(f"👀 Shutting down process watcher...")
+    timestamped_print("👀 Shutting down process watcher...")
     watcher_thread.join(timeout=5)
     
     if watcher_thread.is_alive():
@@ -130,7 +134,7 @@ def block_running_processes() -> None:
         except psutil.AccessDenied:
             logging.warning(f"Access denied killing {proc_name} (pid={proc_pid})")
             failed_kills.append(f"{proc_name} (access denied)")
-        except (psutil.NoSuchProcess, psutil.ProcessLookupError):
+        except psutil.NoSuchProcess:
             continue
 
     if killed_apps:
@@ -144,6 +148,10 @@ def block_running_processes() -> None:
     if not killed_apps and not failed_kills:
         timestamped_print("✅ No blocked apps currently running")
 
+def handle_quit() -> None:
+    timestamped_print("🛑 Quit requested from system tray.")
+    shutdown_event.set()
+
 def main() -> None:
     total_seconds = 0
     last_seconds = 0
@@ -156,8 +164,11 @@ def main() -> None:
     
     block_running_processes()
     
+    tray = Tray(on_quit=handle_quit)
+    tray.start()
+    
     try:
-        while True:
+        while not shutdown_event.is_set():
             try:
                 seconds = get_coding_time()
                 logging.info(f"Fetched coding time: {seconds} seconds")
@@ -187,10 +198,14 @@ def main() -> None:
                 
             except HackatimeError as e:
                 logging.error(f"Fetch failed: {e}")
-                timestamped_print(f"❌ Could not fetch coding time. See 'hackablock.log'.")
+                timestamped_print("❌ Could not fetch coding time. See 'hackablock.log'.")
                 sleep_time = CHECK_INTERVAL
 
-            time.sleep(sleep_time)
+            for _ in range(sleep_time):
+                if shutdown_event.is_set():
+                    shutdown_watcher(watcher_thread)
+                    return None
+                time.sleep(1)
     
     except KeyboardInterrupt:
         timestamped_print("🛑 Recieved interrupt signal. Shutting down...")
