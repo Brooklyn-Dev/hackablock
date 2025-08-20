@@ -1,4 +1,3 @@
-from datetime import datetime
 import logging
 import threading
 import time
@@ -10,6 +9,7 @@ import wmi
 
 from .config import WAKATIME_API_KEY, BLOCKED_APPS, REQUIRED_MINUTES
 from .tray import Tray
+from .utils import get_app_path, pluralise, open_folder, timestamped_print
 
 logging.basicConfig(
     filename="hackablock.log",
@@ -29,13 +29,6 @@ tray: Tray | None = None
 
 class HackatimeError(Exception):
     pass
-
-def pluralise(text: str, value: int) -> str:
-    return f"{text}{"s" if value > 1 else ""}"
-
-def timestamped_print(msg: str) -> None:
-    time_str = datetime.now().strftime("%H:%M:%S")
-    print(f"[{time_str}] {msg}")
 
 def get_coding_time() -> int:
     try:
@@ -141,6 +134,16 @@ def block_running_processes() -> None:
     if not killed_apps and not failed_kills:
         timestamped_print("✅ No blocked apps currently running")
 
+def handle_show_logs() -> None:
+    timestamped_print("📂 Opening 'hackablock.log' in File Explorer.")
+    
+    path = get_app_path()
+    try:
+        open_folder(path)
+    except Exception as e:
+        logging.error(f"Unexpected error opening folder {path}: {e}")
+        timestamped_print(f"⚠️ Failed to open folder {path}. See 'hackablock.log'.")
+
 def handle_quit() -> None:
     timestamped_print("🛑 Quit requested from system tray.")
     shutdown_event.set()
@@ -157,7 +160,7 @@ def main() -> None:
     
     block_running_processes()
     
-    tray = Tray(on_quit=handle_quit)
+    tray = Tray(on_show_logs=handle_show_logs, on_quit=handle_quit)
     tray.start()
     
     try:
