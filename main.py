@@ -106,6 +106,14 @@ def watch_processes() -> None:
     finally:
         pythoncom.CoUninitialize()
 
+def shutdown_watcher(watcher_thread: threading.Thread) -> None:
+    timestamped_print(f"👀 Shutting down process watcher...")
+    watcher_thread.join(timeout=5)
+    
+    if watcher_thread.is_alive():
+        logging.warning("Watcher thread didn't exit within timeout")
+        timestamped_print("⚠️ Process watcher didn't shut down cleanly.")
+            
 def main() -> None:
     total_seconds = 0
     last_seconds = 0
@@ -141,16 +149,8 @@ def main() -> None:
                     requirement_met_event.set()
                     logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
                     timestamped_print(f"🎉 Time requirement met! You've coded {minutes} {pluralise("minute", minutes)} today.")
-                    
-                    timestamped_print(f"👀 Shutting down process watcher...")
-                    watcher_thread.join(timeout=5)
-                    
-                    if watcher_thread.is_alive():
-                        logging.warning("Watcher thread didn't exit within timeout")
-                        timestamped_print("⚠️ Process watcher didn't shut down cleanly.")
-                    
-                    logging.info("Terminating hackablock...")
-                    timestamped_print("🏁 Session complete. Exiting hackablock...")
+                            
+                    shutdown_watcher(watcher_thread)
                     return None
                 
             except HackatimeError as e:
@@ -165,17 +165,13 @@ def main() -> None:
         logging.info("Received KeyboardInterrupt. Shutting down gracefully.")
         
         shutdown_event.set()
-        
-        timestamped_print(f"👀 Shutting down process watcher...")
-        watcher_thread.join(timeout=5)
-        
-        if watcher_thread.is_alive():
-            logging.warning("Watcher thread didn't exit within timeout")
-            timestamped_print("⚠️ Process watcher didn't shut down cleanly.")
-        
-        logging.info("Terminating hackablock...")
-        timestamped_print("👋 Exiting hackablock...")
+
+        shutdown_watcher(watcher_thread)
         return None
+    
+    finally:
+        timestamped_print("👋 Exiting hackablock...")
+        logging.info("Terminating hackablock...\n")
     
 if __name__ == "__main__":
     main()
