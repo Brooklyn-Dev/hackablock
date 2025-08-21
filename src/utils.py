@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from pathlib import Path
 import platform
@@ -39,3 +39,8 @@ def open_folder(path: Path) -> None:
 def timestamped_print(msg: str) -> None:
     time_str = datetime.now().strftime("%H:%M:%S")
     print(f"[{time_str}] {msg}")
+    
+def time_until_tomorrow() -> int:
+    now = datetime.now()
+    tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return int((tomorrow - now).total_seconds())

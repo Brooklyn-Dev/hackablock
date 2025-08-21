@@ -9,10 +9,10 @@ import wmi
 
 from .config import WAKATIME_API_KEY, BLOCKED_APPS, REQUIRED_MINUTES
 from .tray import Tray
-from .utils import get_app_path, pluralise, open_folder, timestamped_print
+from .utils import get_app_path, pluralise, open_folder, timestamped_print, time_until_tomorrow
 
 logging.basicConfig(
-    filename="hackablock.log",
+    filename=str(get_app_path() / "hackablock.log"),
     filemode="a",
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -56,11 +56,15 @@ def watch_processes() -> None:
         c = wmi.WMI()
         proc_watcher = c.Win32_Process.watch_for("creation")
         
-        while not (requirement_met_event.is_set() or shutdown_event.is_set()):
+        while not shutdown_event.is_set():
+            if requirement_met_event.is_set():
+                shutdown_event.wait(timeout=1)
+                continue
+            
             try:
-                new_proc = proc_watcher(timeout_ms=5000)
+                new_proc = proc_watcher(timeout_ms=3000)
                 
-                if not (requirement_met_event.is_set() or shutdown_event.is_set()) and new_proc.Name.lower() in BLOCKED_APPS:
+                if not shutdown_event.is_set() and new_proc.Name.lower() in BLOCKED_APPS:
                     try:
                         new_proc.Terminate()
                         timestamped_print(f"🚫 Blocked {new_proc.Name} from opening")
@@ -81,10 +85,7 @@ def watch_processes() -> None:
                     logging.error(f"Unexpected error in process watcher: {e}")
                     time.sleep(1)
             
-        if requirement_met_event.is_set():
-            logging.info("Process watcher stopped due to requirement being met.")
-            timestamped_print("✅ Process watcher stopped - requirement met.")
-        elif shutdown_event.is_set():
+        if shutdown_event.is_set():
             logging.info("Process watcher stopped due to shutdown being requested.")
             timestamped_print("✅ Process watcher stopped - shutdown requested.")
                 
@@ -98,6 +99,9 @@ def watch_processes() -> None:
         pythoncom.CoUninitialize()
 
 def shutdown_watcher(watcher_thread: threading.Thread) -> None:
+    if not watcher_thread.is_alive():
+        return
+    
     timestamped_print("👀 Shutting down process watcher...")
     watcher_thread.join(timeout=5)
     
@@ -151,7 +155,7 @@ def handle_quit() -> None:
 def main() -> None:
     total_seconds = 0
     last_seconds = 0
-    
+
     logging.info("Booting hackablock...")
     timestamped_print("🔃 Loaded hackablock. Session starting...")
     
@@ -179,6 +183,8 @@ def main() -> None:
                 last_seconds = seconds
                 
                 if minutes < REQUIRED_MINUTES:
+                    requirement_met_event.clear()
+                    
                     remaining = REQUIRED_MINUTES - minutes
                     logging.info(f"{minutes} {pluralise("minute", minutes)} recorded, {remaining} more required to unblock apps.")
                     timestamped_print(f"⏳ You need {remaining} more {pluralise("minute", remaining)} to meet today's requirement.")
@@ -186,11 +192,11 @@ def main() -> None:
                     sleep_time = max(remaining * 60, CHECK_INTERVAL)
                 else:
                     requirement_met_event.set()
+                    
                     logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
                     timestamped_print(f"🎉 Time requirement met! You've coded {minutes} {pluralise("minute", minutes)} today.")
-                            
-                    shutdown_watcher(watcher_thread)
-                    return None
+                    
+                    sleep_time = time_until_tomorrow()
                 
             except HackatimeError as e:
                 logging.error(f"Fetch failed: {e}")
@@ -199,7 +205,6 @@ def main() -> None:
 
             for _ in range(sleep_time):
                 if shutdown_event.is_set():
-                    shutdown_watcher(watcher_thread)
                     return None
                 time.sleep(1)
     
@@ -208,8 +213,8 @@ def main() -> None:
         logging.info("Received KeyboardInterrupt. Shutting down gracefully.")
         
         shutdown_event.set()
-
         shutdown_watcher(watcher_thread)
+
         return None
     
     finally:
