@@ -1,11 +1,17 @@
 import logging
+import sys
 import threading
 import time
 
 import psutil
-import pythoncom
 import requests
-import wmi
+
+if sys.platform == "win32":
+    import pythoncom
+    import wmi
+else:
+    pythoncom = None
+    wmi = None
 
 from .config import WAKATIME_API_KEY, BLOCKED_APPS, REQUIRED_MINUTES
 from .tray import Tray
@@ -49,54 +55,75 @@ def get_coding_time() -> int:
     except ValueError as e:
         raise HackatimeError(f"Bad data in API response: {e}") from e
 
-def watch_processes() -> None:
-    pythoncom.CoInitialize()
-    
-    try:
-        c = wmi.WMI()
-        proc_watcher = c.Win32_Process.watch_for("creation")
+if sys.platform == "win32":
+    def _watch_processes_windows() -> None:
+        pythoncom.CoInitialize()
         
-        while not shutdown_event.is_set():
-            if requirement_met_event.is_set():
-                shutdown_event.wait(timeout=1)
-                continue
+        try:
+            c = wmi.WMI()
+            proc_watcher = c.Win32_Process.watch_for("creation")
             
-            try:
-                new_proc = proc_watcher(timeout_ms=3000)
+            while not shutdown_event.is_set():
+                if requirement_met_event.is_set():
+                    shutdown_event.wait(timeout=1)
+                    continue
                 
-                if not shutdown_event.is_set() and new_proc.Name.lower() in BLOCKED_APPS:
-                    try:
-                        new_proc.Terminate()
-                        timestamped_print(f"🚫 Blocked {new_proc.Name} from opening")
-                        logging.info(f"Terminated process: {new_proc.Name} (pid={new_proc.ProcessId})")
-                    except (OSError, AttributeError) as e:
-                        logging.warning(f"Could not terminate {new_proc.Name}: {e}")
-                    except Exception as e:
-                        logging.error(f"Unexpected error terminating {new_proc.Name}: {e}")
-                        
-            except wmi.x_wmi_timed_out:
-                continue
-            except wmi.x_wmi as e:
-                if not shutdown_event.is_set():
-                    logging.error(f"WMI error in process watcher: {e}")
-                    time.sleep(3)
-            except Exception as e:
-                if not shutdown_event.is_set():
-                    logging.error(f"Unexpected error in process watcher: {e}")
-                    time.sleep(1)
-            
-        if shutdown_event.is_set():
-            logging.info("Process watcher stopped due to shutdown being requested.")
-            timestamped_print("✅ Process watcher stopped - shutdown requested.")
+                try:
+                    new_proc = proc_watcher(timeout_ms=3000)
+                    
+                    if not shutdown_event.is_set() and new_proc.Name.lower() in BLOCKED_APPS:
+                        try:
+                            new_proc.Terminate()
+                            timestamped_print(f"🚫 Blocked {new_proc.Name} from opening")
+                            logging.info(f"Terminated process: {new_proc.Name} (pid={new_proc.ProcessId})")
+                        except (OSError, AttributeError) as e:
+                            logging.warning(f"Could not terminate {new_proc.Name}: {e}")
+                        except Exception as e:
+                            logging.error(f"Unexpected error terminating {new_proc.Name}: {e}")
+                            
+                except wmi.x_wmi_timed_out:
+                    continue
+                except wmi.x_wmi as e:
+                    if not shutdown_event.is_set():
+                        logging.error(f"WMI error in process watcher: {e}")
+                        time.sleep(3)
+                except Exception as e:
+                    if not shutdown_event.is_set():
+                        logging.error(f"Unexpected error in process watcher: {e}")
+                        time.sleep(1)
                 
-    except wmi.x_wmi as e:
-        logging.error(f"Failed to initialise WMI: {e}")
-        timestamped_print("❌ Failed to start process watcher. See 'hackablock.log'.")
-    except Exception as e:
-        logging.error(f"Failed to start process watcher: {e}")
-        timestamped_print("❌ Failed to start process watcher. See 'hackablock.log'.")
-    finally:
-        pythoncom.CoUninitialize()
+            if shutdown_event.is_set():
+                logging.info("Process watcher stopped due to shutdown being requested.")
+                timestamped_print("✅ Process watcher stopped - shutdown requested.")
+                    
+        except wmi.x_wmi as e:
+            logging.error(f"Failed to initialise WMI: {e}")
+            timestamped_print("❌ Failed to start process watcher. See 'hackablock.log'.")
+        except Exception as e:
+            logging.error(f"Failed to start process watcher: {e}")
+            timestamped_print("❌ Failed to start process watcher. See 'hackablock.log'.")
+        finally:
+            pythoncom.CoUninitialize()
+
+elif sys.platform.startswith("linux"):
+    def _watch_processes_linux() -> None:
+        pass
+
+elif sys.platform == "darwin":
+    def _watch_processes_macos() -> None:
+        raise NotImplementedError
+
+def watch_processes() -> None:
+    if sys.platform == "win32":
+        _watch_processes_windows()
+    elif sys.platform.startswith("linux"):
+        # _watch_processes_linux()
+        timestamped_print("⚠️ Process watching is unsupported for Linux")
+    elif sys.platform ==  "darwin":
+        # _watch_processes_macos()
+        timestamped_print("⚠️ Process watching is unsupported for MacOS")
+    else:
+        timestamped_print(f"⚠️ Process watching is unsupported for {sys.platform}")
 
 def shutdown_watcher(watcher_thread: threading.Thread) -> None:
     if not watcher_thread.is_alive():
