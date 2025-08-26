@@ -15,7 +15,7 @@ else:
 
 from .config import WAKATIME_API_KEY, BLOCKED_APPS, REQUIRED_MINUTES
 from .tray import Tray
-from .utils import get_app_path, pluralise, open_folder, timestamped_print, time_until_tomorrow
+from .utils import get_app_path, notify, open_folder, pluralise, timestamped_print, time_until_tomorrow
 
 logging.basicConfig(
     filename=str(get_app_path() / "hackablock.log"),
@@ -75,6 +75,7 @@ if sys.platform == "win32":
                         try:
                             new_proc.Terminate()
                             timestamped_print(f"🚫 Blocked {new_proc.Name} from opening")
+                            notify(f"🚫 Blocked {new_proc.Name} from opening", f"Code a total of {REQUIRED_MINUTES} minutes to unblock apps.")
                             logging.info(f"Terminated process: {new_proc.Name} (pid={new_proc.ProcessId})")
                         except (OSError, AttributeError) as e:
                             logging.warning(f"Could not terminate {new_proc.Name}: {e}")
@@ -157,10 +158,12 @@ def block_running_processes() -> None:
     if killed_apps:
         apps_list = ", ".join(killed_apps)
         timestamped_print(f"🚫 Blocked running apps: {apps_list}")
+        notify("🚫 Blocked running apps:", apps_list)
     
     if failed_kills:
         failed_list = ", ".join(failed_kills)
         timestamped_print(f"⚠️ Could not kill: {failed_list}")
+        notify("⚠️ Could not kill:", failed_list)
     
     if not killed_apps and not failed_kills:
         timestamped_print("✅ No blocked apps currently running")
@@ -222,6 +225,7 @@ def main() -> None:
                     
                     logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
                     timestamped_print(f"🎉 Time requirement met! You've coded {minutes} {pluralise("minute", minutes)} today.")
+                    notify("🎉 Time requirement met!", f"You've coded {minutes} {pluralise("minute", minutes)} today. Apps are unblocked!")
                     
                     sleep_time = time_until_tomorrow()
                 

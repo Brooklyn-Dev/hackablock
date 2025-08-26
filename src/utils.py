@@ -5,6 +5,8 @@ import platform
 import subprocess
 import sys
 
+from plyer import notification
+
 def get_app_path(app_name: str = "hackablock") -> Path:
     if getattr(sys, "frozen", False):
         # Production
@@ -22,8 +24,17 @@ def get_app_path(app_name: str = "hackablock") -> Path:
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
 
-def pluralise(text: str, value: int) -> str:
-    return f"{text}{"s" if value > 1 else ""}"
+def notify(title: str, message: str, app_name: str = "hackablock", app_icon: str = "./assets/favicon.ico", timeout: float = 5) -> None:
+    if hasattr(notification, "notify") and callable(notification.notify):
+        notification.notify(
+            title=title,
+            message=message,
+            app_name=app_name,
+            app_icon=app_icon,
+            timeout=timeout
+        )
+    else:
+        raise Exception("Notifications are not supported on this platform.")
 
 def open_folder(path: Path) -> None:
     path = path.resolve()
@@ -35,6 +46,9 @@ def open_folder(path: Path) -> None:
         subprocess.Popen(["open", str(path)])
     else:
         subprocess.Popen(["xdg-open", str(path)])    
+
+def pluralise(text: str, value: int) -> str:
+    return f"{text}{"s" if value > 1 else ""}"
 
 def timestamped_print(msg: str) -> None:
     time_str = datetime.now().strftime("%H:%M:%S")
