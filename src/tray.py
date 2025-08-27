@@ -7,9 +7,11 @@ from pystray import Icon, Menu, MenuItem
 class Tray:
     def __init__(
         self,
+        on_show_progress: Callable | None = None,
         on_show_logs: Callable | None = None,
         on_quit: Callable | None = None
     ) -> None:
+        self.on_show_progress = on_show_progress
         self.on_show_logs = on_show_logs
         self.on_quit = on_quit
         
@@ -19,11 +21,16 @@ class Tray:
     
     def _create_menu(self) -> Menu:
         return Menu(
-            MenuItem("Show Logs", self.on_show_logs),
+            MenuItem("Show Progress", self._show_progress_handler),
+            MenuItem("Show Logs", self._show_logs_handler),
             Menu.SEPARATOR,
             MenuItem("Quit", self._quit_handler),
         )
         
+    def _show_progress_handler(self) -> None:
+        if self.on_show_progress:
+            self.on_show_progress()    
+                
     def _show_logs_handler(self) -> None:
         if self.on_show_logs:
             self.on_show_logs()        

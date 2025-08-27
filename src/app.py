@@ -58,7 +58,11 @@ class App:
             timestamped_print(f"⚠️ Process watching is unsupported on this platform: {sys.platform}")
 
     def _start_tray(self) -> None:
-        self.tray = Tray(on_show_logs=self._handle_show_logs, on_quit=self._handle_quit)
+        self.tray = Tray(
+            on_show_progress=self._handle_show_progress,
+            on_show_logs=self._handle_show_logs,
+            on_quit=self._handle_quit
+        )
         self.tray.start()
         
     def _shutdown_watcher(self) -> None:
@@ -106,6 +110,15 @@ class App:
         self.requirement_met_event.clear()
         
     # EVENT HANDLERS
+    def _handle_show_progress(self) -> None:
+        try:
+            minutes = self._get_minutes_coded()
+            self._handle_progress_update(minutes)
+            remaining = REQUIRED_MINUTES - minutes
+            notify(f"✅ You've coded {minutes} {pluralise("minute", minutes)} today.", f"Code for {remaining} more minutes to unblock apps.")
+        except HackatimeError as e:
+            self._handle_fetch_error(e)
+        
     def _handle_show_logs(self) -> None:
         path = get_app_path()
         timestamped_print("📂 Opening 'hackablock.log' in File Explorer.")
@@ -122,6 +135,7 @@ class App:
     def _handle_fetch_error(self, error: HackatimeError) -> None:
         logging.error(f"Fetch failed: {error}")
         timestamped_print("❌ Could not fetch coding time. See 'hackablock.log'.")
+        notify("❌ Could not fetch coding time.", f"Retrying in {CHECK_INTERVAL} seconds.")
 
     def _handle_shutdown_request(self) -> None:
         timestamped_print("🛑 Recieved interrupt signal. Shutting down...")
