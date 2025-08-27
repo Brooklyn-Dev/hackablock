@@ -1,0 +1,2 @@
+class HackatimeError(Exception):
+    pass
