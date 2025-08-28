@@ -1,6 +1,8 @@
 import logging
+import signal
 import sys
 import threading
+from types import FrameType
 from typing import List, Set, Tuple
 
 import psutil
@@ -50,17 +52,18 @@ class App:
             self.signals.update_error_signal.connect(self._handle_fetch_error)
             
             self._start_tray()
-            
             self._start_logic_thread()
             self._start_process_watcher()
             self._block_running_processes()
             
+            if __debug__:
+                signal.signal(signal.SIGINT, self._handle_sigint)
+            
+                timer = QTimer()
+                timer.timeout.connect(lambda: None)
+                timer.start(200)
+            
             self._start_qt_app()
-
-        except KeyboardInterrupt:
-            pass
-            # Need to fix within qt app as it won't get detected after qt is running.
-            # self._handle_shutdown_request()
             
         finally:
             timestamped_print("👋 Exiting hackablock...")
@@ -197,7 +200,14 @@ class App:
 
     def _handle_quit(self) -> None:
         timestamped_print("🛑 Quit requested from system tray.")
-        self.shutdown_event.set()
+        self._shutdown_watcher()
+        
+        if self.qt_app:
+            self.qt_app.quit()
+            
+    def _handle_sigint(self, signum: int, frame: FrameType | None):
+        timestamped_print("🛑 Ctrl+C caught, shutting down...")
+        self._shutdown_watcher()
         
         if self.qt_app:
             self.qt_app.quit()
@@ -208,15 +218,6 @@ class App:
         if self.notifier:
             self.notifier.notify("❌ Could not fetch coding time.", f"Retrying in {CHECK_INTERVAL} seconds.")
 
-    def _handle_shutdown_request(self) -> None:
-        timestamped_print("🛑 Recieved interrupt signal. Shutting down...")
-        logging.info("Received KeyboardInterrupt. Shutting down gracefully.")
-        
-        self._shutdown_watcher()
-
-        if self.qt_app:
-            self.qt_app.quit()
-    
     # INTERNAL HELPERS           
     def _main_loop(self) -> None:
         while not self.shutdown_event.is_set():
