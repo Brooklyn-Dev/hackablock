@@ -1,62 +1,46 @@
-import threading
-from typing import Any, Callable
+from typing import Callable
 
-from PIL import Image
-from pystray import Icon, Menu, MenuItem
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
-class Tray:
+class Tray(QSystemTrayIcon):
     def __init__(
         self,
         on_show_progress: Callable | None = None,
         on_show_logs: Callable | None = None,
         on_quit: Callable | None = None
     ) -> None:
-        self.on_show_progress = on_show_progress
-        self.on_show_logs = on_show_logs
-        self.on_quit = on_quit
+        super().__init__(QIcon("./assets/favicon.ico"))
         
-        self.icon: Any | None = None
-        self.tray_thread: threading.Thread | None = None
-        self._is_blocking = True
+        self._on_show_progress = on_show_progress
+        self._on_show_logs = on_show_logs
+        self._on_quit = on_quit
+        
+        self.setToolTip("Hackablock")
+        
+        self.activated.connect(self._handle_click)
+        
+        self._menu = self._create_menu()
+        self.setContextMenu(self._menu)
     
-    def _create_menu(self) -> Menu:
-        return Menu(
-            MenuItem("Show Progress", self._show_progress_handler),
-            MenuItem("Show Logs", self._show_logs_handler),
-            Menu.SEPARATOR,
-            MenuItem("Quit", self._quit_handler),
-        )
+    def _create_menu(self) -> QMenu:
+        menu = QMenu()
         
-    def _show_progress_handler(self) -> None:
-        if self.on_show_progress:
-            self.on_show_progress()    
-                
-    def _show_logs_handler(self) -> None:
-        if self.on_show_logs:
-            self.on_show_logs()        
-
-    def _quit_handler(self) -> None:
-        if self.on_quit:
-            self.on_quit()
-        if self.icon:
-            self.icon.stop()
+        if show_progress_action := menu.addAction("📊 Show Progress"):
+            show_progress_action.triggered.connect(self._on_show_progress)
         
-    def start(self) -> None:
-        if self.tray_thread and self.tray_thread.is_alive():
-            return
+        if show_logs_action := menu.addAction("📂 Show Logs"):
+            show_logs_action.triggered.connect(self._on_show_logs)
         
-        def run_tray() -> None:
-            image = Image.open("./assets/favicon.ico")
-            menu = self._create_menu()
-            
-            self.icon = Icon("hb", image, "hackablock", menu)
-            self.icon.run()
-
-        self.tray_thread = threading.Thread(target=run_tray, daemon=True)
-        self.tray_thread.start()
+        menu.addSeparator()
         
-    def stop(self) -> None:
-        if self.icon:
-            self.icon.stop()
-        if self.tray_thread:
-            self.tray_thread.join(timeout=2)
+        if quit_action := menu.addAction("❌ Quit"):
+            quit_action.triggered.connect(self._on_quit)
+        
+        return menu
+        
+    def _handle_click(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        match reason:
+            case QSystemTrayIcon.ActivationReason.Trigger:
+                if self._on_show_progress:
+                    self._on_show_progress()
