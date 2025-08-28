@@ -20,6 +20,8 @@ class Tray(QSystemTrayIcon):
         
         self.activated.connect(self._handle_click)
         
+        self.messageClicked.connect(self._on_message_clicked)
+        
         self._menu = self._create_menu()
         self.setContextMenu(self._menu)
     
@@ -44,3 +46,7 @@ class Tray(QSystemTrayIcon):
             case QSystemTrayIcon.ActivationReason.Trigger:
                 if self._on_show_progress:
                     self._on_show_progress()
+
+    def _on_message_clicked(self) -> None:
+        if self._on_show_progress:
+            self._on_show_progress()

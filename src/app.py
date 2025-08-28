@@ -10,9 +10,10 @@ from PySide6.QtWidgets import QApplication
 from .coding_time_tracker import CodingTimeTracker
 from .config import BLOCKED_APPS, REQUIRED_MINUTES
 from .hackatime_error import HackatimeError
+from .notifier import Notifier
 from .main_window import MainWindow
 from .tray import Tray
-from .utils import get_app_path, notify, open_folder, pluralise, timestamped_print, time_until_tomorrow
+from .utils import get_app_path, open_folder, pluralise, timestamped_print, time_until_tomorrow
 from .watchers import watch_processes
 
 CHECK_INTERVAL = 60  # sec
@@ -27,6 +28,7 @@ class App:
         self.shutdown_event: threading.Event = threading.Event()
 
         self.tray: Tray | None = None
+        self.notifier: Notifier | None = None
         self.watcher_thread: threading.Thread | None = None
         self.logic_thread: threading.Thread | None = None
         self.signals = AppSignals()
@@ -47,11 +49,11 @@ class App:
             self.signals.update_progress_signal.connect(self._handle_progress_update)
             self.signals.update_error_signal.connect(self._handle_fetch_error)
             
+            self._start_tray()
+            
             self._start_logic_thread()
             self._start_process_watcher()
             self._block_running_processes()
-            
-            self._start_tray()
             
             self._start_qt_app()
 
@@ -90,7 +92,7 @@ class App:
         if watch_processes:
             self.watcher_thread = threading.Thread(
                 target=watch_processes,
-                args=(self.shutdown_event, self.requirement_met_event),
+                args=(self.shutdown_event, self.requirement_met_event, self.notifier),
                 daemon=True
             )
             self.watcher_thread.start()
@@ -104,6 +106,8 @@ class App:
             on_quit=self._handle_quit
         )
         self.tray.show()
+        
+        self.notifier = Notifier(self.tray)
         
     def _shutdown_watcher(self) -> None:
         if not self.watcher_thread or not self.watcher_thread.is_alive():
@@ -134,7 +138,11 @@ class App:
             
             logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
             timestamped_print(f"🎉 Time requirement met! You've coded {minutes} {pluralise("minute", minutes)} today.")
-            notify("🎉 Time requirement met!", f"You've coded {minutes} {pluralise("minute", minutes)} today. Apps are unblocked!") 
+            if self.notifier:
+                self.notifier.notify(
+                    "🎉 Time requirement met!",
+                    f"You've coded {minutes} {pluralise("minute", minutes)} today. Apps are unblocked!"
+                ) 
         
         return self._calculate_sleep_time(minutes)
     
@@ -172,6 +180,8 @@ class App:
         try:
             minutes = self._get_minutes_coded()
             self._handle_progress_update(minutes)
+            if self.main_window:
+                self.main_window.update_progress(minutes)
             timestamped_print(f"🔃 Progress refreshed. You've coded {minutes} {pluralise("minute", minutes)} today.")
         except HackatimeError as e:
             self._handle_fetch_error(e)
@@ -195,7 +205,8 @@ class App:
     def _handle_fetch_error(self, error: HackatimeError) -> None:
         logging.error(f"Fetch failed: {error}")
         timestamped_print("❌ Could not fetch coding time. See 'hackablock.log'.")
-        notify("❌ Could not fetch coding time.", f"Retrying in {CHECK_INTERVAL} seconds.")
+        if self.notifier:
+            self.notifier.notify("❌ Could not fetch coding time.", f"Retrying in {CHECK_INTERVAL} seconds.")
 
     def _handle_shutdown_request(self) -> None:
         timestamped_print("🛑 Recieved interrupt signal. Shutting down...")
@@ -253,10 +264,12 @@ class App:
         if killed_apps:
             apps_list = ", ".join(killed_apps)
             timestamped_print(f"🚫 Blocked running apps: {apps_list}")
-            notify("🚫 Blocked running apps:", apps_list)
+            if self.notifier:
+                self.notifier.notify("🚫 Blocked running apps:", apps_list)
         if failed_kills:
             failed_list = ", ".join(failed_kills)
             timestamped_print(f"⚠️ Could not kill: {failed_list}")
-            notify("⚠️ Could not kill:", failed_list)
+            if self.notifier:
+                self.notifier.notify("⚠️ Could not kill:", failed_list)
         if not killed_apps and not failed_kills:
             timestamped_print("✅ No blocked apps currently running")

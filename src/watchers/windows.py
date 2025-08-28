@@ -11,9 +11,10 @@ else:
     wmi = None
 
 from ..config import BLOCKED_APPS, REQUIRED_MINUTES
-from ..utils import notify, timestamped_print
+from ..notifier import Notifier
+from ..utils import timestamped_print
 
-def watch_processes(shutdown_event: threading.Event, requirement_met_event: threading.Event) -> None:
+def watch_processes(shutdown_event: threading.Event, requirement_met_event: threading.Event, notifier: Notifier | None = None) -> None:
     pythoncom.CoInitialize()
     
     try:
@@ -32,7 +33,8 @@ def watch_processes(shutdown_event: threading.Event, requirement_met_event: thre
                     try:
                         new_proc.Terminate()
                         timestamped_print(f"🚫 Blocked {new_proc.Name} from opening")
-                        notify(f"🚫 Blocked {new_proc.Name} from opening", f"Code a total of {REQUIRED_MINUTES} minutes to unblock apps.")
+                        if notifier:
+                            notifier.notify(f"🚫 Blocked {new_proc.Name} from opening", f"Code a total of {REQUIRED_MINUTES} minutes to unblock apps.")
                         logging.info(f"Terminated process: {new_proc.Name} (pid={new_proc.ProcessId})")
                     except (OSError, AttributeError) as e:
                         logging.warning(f"Could not terminate {new_proc.Name}: {e}")
