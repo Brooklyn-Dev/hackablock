@@ -15,7 +15,7 @@ from .hackatime_error import HackatimeError
 from .notifier import Notifier
 from .main_window import MainWindow
 from .tray import Tray
-from .utils import get_app_path, open_folder, pluralise, timestamped_print, time_until_tomorrow
+from .utils import format_time, get_app_path, open_folder, timestamped_print, time_until_tomorrow
 from .watchers import watch_processes
 
 CHECK_INTERVAL = 60  # sec
@@ -125,29 +125,30 @@ class App:
             timestamped_print("⚠️ Process watcher didn't shut down cleanly.")
 
     # BUSINESS LOGIC       
-    def _get_minutes_coded(self) -> int:
+    def _get_seconds_coded(self) -> int:
         seconds = self.tracker.fetch_coding_seconds()
         return self.tracker.update(seconds)
         
-    def _handle_progress_update(self, minutes: int) -> int:
-        if minutes < REQUIRED_MINUTES:
+    def _handle_progress_update(self, seconds: int) -> int:
+        remaining_seconds = max(0, REQUIRED_MINUTES * 60 - seconds)
+        
+        if seconds < REQUIRED_MINUTES * 60:
             self._set_requirement_unmet()
             
-            remaining = REQUIRED_MINUTES - minutes
-            logging.info(f"{minutes} {pluralise("minute", minutes)} recorded, {remaining} more required to unblock apps.")
-            timestamped_print(f"⏳ You need {remaining} more {pluralise("minute", remaining)} to meet today's requirement.")
+            logging.info(f"{format_time(seconds)} recorded, {format_time(remaining_seconds)} more required to unblock apps.")
+            timestamped_print(f"⏳ You need to code {format_time(remaining_seconds)} more to meet today's requirement.")
         else:
             self._set_requirement_met()
             
-            logging.info(f"{REQUIRED_MINUTES} minute requirement met.")
-            timestamped_print(f"🎉 Time requirement met! You've coded {minutes} {pluralise("minute", minutes)} today.")
+            logging.info(f"{format_time(seconds)} coded - requirement met!")
+            timestamped_print(f"🎉 Time requirement met! You've coded for {format_time(seconds)} today.")
             if self.notifier:
                 self.notifier.notify(
                     "🎉 Time requirement met!",
-                    f"You've coded {minutes} {pluralise("minute", minutes)} today. Apps are unblocked!"
+                    f"You've coded for {format_time(seconds)} today. Apps are unblocked!"
                 ) 
         
-        return self._calculate_sleep_time(minutes)
+        return self._calculate_sleep_time(seconds)
     
     def _block_running_processes(self) -> None:
         killed_apps, failed_kills = self._kill_blocked_processes()
@@ -168,8 +169,8 @@ class App:
     def _show_main_window_thread(self) -> None:
         if self.main_window:
             try:
-                minutes = self._get_minutes_coded()
-                self.main_window.update_progress(minutes)
+                seconds = self._get_seconds_coded()
+                self.main_window.update_progress(seconds)
             except HackatimeError as e:
                 self._handle_fetch_error(e)
             
@@ -181,11 +182,11 @@ class App:
     
     def _handle_refresh_progress(self) -> None:
         try:
-            minutes = self._get_minutes_coded()
-            self._handle_progress_update(minutes)
+            seconds = self._get_seconds_coded()
+            self._handle_progress_update(seconds)
             if self.main_window:
-                self.main_window.update_progress(minutes)
-            timestamped_print(f"🔃 Progress refreshed. You've coded {minutes} {pluralise("minute", minutes)} today.")
+                self.main_window.update_progress(seconds)
+            timestamped_print(f"🔃 Progress refreshed. You've coded for {format_time(seconds)} today.")
         except HackatimeError as e:
             self._handle_fetch_error(e)
         
@@ -222,9 +223,9 @@ class App:
     def _main_loop(self) -> None:
         while not self.shutdown_event.is_set():
             try:
-                minutes = self._get_minutes_coded()
-                self.signals.update_progress_signal.emit(minutes)
-                sleep_time = self._calculate_sleep_time(minutes)
+                seconds = self._get_seconds_coded()
+                self.signals.update_progress_signal.emit(seconds)
+                sleep_time = self._calculate_sleep_time(seconds)
             except HackatimeError as e:
                 self.signals.update_error_signal.emit(e)
                 sleep_time = CHECK_INTERVAL
@@ -234,10 +235,10 @@ class App:
         
         timestamped_print("🛑 Logic thread shutting down...")
             
-    def _calculate_sleep_time(self, minutes: int) -> int:
-        if minutes < REQUIRED_MINUTES:
-            remaining = REQUIRED_MINUTES - minutes
-            return max(remaining * 60, CHECK_INTERVAL)
+    def _calculate_sleep_time(self, seconds: int) -> int:
+        if seconds < REQUIRED_MINUTES * 60:
+            remaining_seconds = REQUIRED_MINUTES * 60 - seconds
+            return max(remaining_seconds, CHECK_INTERVAL)
         else:
             return time_until_tomorrow()
     

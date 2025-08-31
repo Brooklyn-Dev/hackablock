@@ -5,6 +5,20 @@ import platform
 import subprocess
 import sys
 
+def format_time(seconds: int, full_format: bool = False, pad: bool = False) -> str:
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    
+    if pad:
+        h_str, m_str, s_str = f"{hours:02d}h", f"{minutes:02d}m", f"{secs:02d}s"
+    else:
+        h_str, m_str, s_str = f"{hours}h", f"{minutes}m", f"{secs}s"
+
+    if not full_format and hours == 0:
+        return f"{m_str} {s_str}"
+    
+    return f"{h_str} {m_str} {s_str}"
+
 def get_app_path(app_name: str = "hackablock") -> Path:
     if getattr(sys, "frozen", False):
         # Production
@@ -32,9 +46,6 @@ def open_folder(path: Path) -> None:
         subprocess.Popen(["open", str(path)])
     else:
         subprocess.Popen(["xdg-open", str(path)])    
-
-def pluralise(text: str, value: int) -> str:
-    return f"{text}{"s" if value > 1 else ""}"
 
 def timestamped_print(msg: str) -> None:
     time_str = datetime.now().strftime("%H:%M:%S")

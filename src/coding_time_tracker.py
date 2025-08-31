@@ -40,4 +40,4 @@ class CodingTimeTracker:
         else: # Midnight reset
             self.total_seconds += seconds
         self.last_seconds = seconds
-        return self.total_seconds // 60
+        return self.total_seconds
