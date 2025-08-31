@@ -7,10 +7,12 @@ from .utils import get_app_path
 SETTINGS_FILE = get_app_path() / "hackablock.json"
 
 VALIDATION_RULES: Dict[str, Callable] = {
+    "hackatime_api_key": lambda v: isinstance(v, str),
     "minutes_required": lambda v: isinstance(v, int) and 1 <= v <= 720
 }
 
 DEFAULTS: Dict = {
+    "hackatime_api_key": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
     "minutes_required": 60,
 }
 

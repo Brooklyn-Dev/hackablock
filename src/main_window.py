@@ -2,7 +2,7 @@ from typing import Callable
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCloseEvent, QIcon, QFont
-from PySide6.QtWidgets import QGroupBox, QLabel, QMainWindow, QProgressBar, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGroupBox, QLabel, QLineEdit, QMainWindow, QProgressBar, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget
 
 from .settings import settings
 from .utils import format_time
@@ -70,11 +70,20 @@ class MainWindow(QMainWindow):
         def _create_general_group(self) -> QGroupBox:
             general_group = QGroupBox("General")
             general_layout = QVBoxLayout()
+            
+            self.api_key = QLineEdit()
+            self.api_key.setPlaceholderText("Paste your Hackatime API key here")
+            self.api_key.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
+            
             self.required_minutes = QSpinBox()
             self.required_minutes.setRange(1, 720)
             self.required_minutes.setValue(settings.data["minutes_required"])
+            
             apply_btn = QPushButton("Apply")
             apply_btn.clicked.connect(self._apply_general_settings)
+            
+            general_layout.addWidget(QLabel(f"Hackatime API key:"))
+            general_layout.addWidget(self.api_key)
             general_layout.addWidget(QLabel(f"Daily required coding time (minutes):"))
             general_layout.addWidget(self.required_minutes)
             general_layout.addWidget(apply_btn)
@@ -98,8 +107,8 @@ class MainWindow(QMainWindow):
         return tab
     
     def _apply_general_settings(self) -> None:
-        value = self.required_minutes.value()
-        settings.update_setting("minutes_required", value)
+        settings.update_setting("hackatime_api_key", self.api_key.text())
+        settings.update_setting("minutes_required", self.required_minutes.value())
         self.progress_bar.setMaximum(settings.data["minutes_required"] * 60)
         settings.save()
         

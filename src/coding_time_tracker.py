@@ -2,8 +2,8 @@ import logging
 
 import requests
 
-from .config import WAKATIME_API_KEY
 from .hackatime_error import HackatimeError
+from .settings import settings
 
 HACKATIME_API_URL = "https://hackatime.hackclub.com/api/hackatime/v1"
 
@@ -17,7 +17,7 @@ class CodingTimeTracker:
         try:
             res = requests.get(
                 f"{HACKATIME_API_URL}/users/current/statusbar/today",
-                headers={"Authorization": f"Bearer {WAKATIME_API_KEY}"},
+                headers={"Authorization": f"Bearer {settings.data["hackatime_api_key"]}"},
                 timeout=10
             )
             res.raise_for_status()
