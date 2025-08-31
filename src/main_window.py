@@ -75,7 +75,7 @@ class MainWindow(QMainWindow):
             self.required_minutes.setValue(settings.data["minutes_required"])
             apply_btn = QPushButton("Apply")
             apply_btn.clicked.connect(self._apply_general_settings)
-            general_layout.addWidget(QLabel(f"Daily required coding time:"))
+            general_layout.addWidget(QLabel(f"Daily required coding time (minutes):"))
             general_layout.addWidget(self.required_minutes)
             general_layout.addWidget(apply_btn)
             
@@ -101,6 +101,7 @@ class MainWindow(QMainWindow):
         value = self.required_minutes.value()
         settings.update_setting("minutes_required", value)
         self.progress_bar.setMaximum(settings.data["minutes_required"] * 60)
+        settings.save()
         
         if self.on_refresh:
             self.on_refresh()

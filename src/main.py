@@ -1,7 +1,6 @@
 import logging
 import sys
 
-from .app import App
 from .utils import get_app_path
 
 logging.basicConfig(
@@ -11,6 +10,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
     level=logging.INFO
 )
+
+from .app import App
 
 if sys.platform == "win32":
     import ctypes
