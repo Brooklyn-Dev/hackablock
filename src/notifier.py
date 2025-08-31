@@ -4,13 +4,13 @@ from PySide6.QtWidgets import QSystemTrayIcon
 class Notifier(QObject):
     notify_signal: Signal = Signal(str, str)
     
-    def __init__(self, tray: QSystemTrayIcon):
+    def __init__(self, tray: QSystemTrayIcon) -> None:
         super().__init__()
         self._tray = tray
         self.notify_signal.connect(self._show_message)
         
-    def _show_message(self, title: str, message: str):
+    def _show_message(self, title: str, message: str) -> None:
         self._tray.showMessage(title, message)
     
-    def notify(self, title: str, message: str):
+    def notify(self, title: str, message: str) -> None:
         self.notify_signal.emit(title, message)

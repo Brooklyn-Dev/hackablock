@@ -10,10 +10,11 @@ from PySide6.QtCore import QCoreApplication, QTimer, QObject, Signal
 from PySide6.QtWidgets import QApplication
 
 from .coding_time_tracker import CodingTimeTracker
-from .config import BLOCKED_APPS, REQUIRED_MINUTES
+from .config import BLOCKED_APPS
 from .hackatime_error import HackatimeError
 from .notifier import Notifier
 from .main_window import MainWindow
+from .settings import settings
 from .tray import Tray
 from .utils import format_time, get_app_path, open_folder, timestamped_print, time_until_tomorrow
 from .watchers import watch_processes
@@ -130,9 +131,9 @@ class App:
         return self.tracker.update(seconds)
         
     def _handle_progress_update(self, seconds: int) -> int:
-        remaining_seconds = max(0, REQUIRED_MINUTES * 60 - seconds)
+        remaining_seconds = max(0, settings.data["minutes_required"] * 60 - seconds)
         
-        if seconds < REQUIRED_MINUTES * 60:
+        if seconds < settings.data["minutes_required"] * 60:
             self._set_requirement_unmet()
             
             logging.info(f"{format_time(seconds)} recorded, {format_time(remaining_seconds)} more required to unblock apps.")
@@ -236,8 +237,8 @@ class App:
         timestamped_print("🛑 Logic thread shutting down...")
             
     def _calculate_sleep_time(self, seconds: int) -> int:
-        if seconds < REQUIRED_MINUTES * 60:
-            remaining_seconds = REQUIRED_MINUTES * 60 - seconds
+        if seconds < settings.data["minutes_required"] * 60:
+            remaining_seconds = settings.data["minutes_required"] * 60 - seconds
             return max(remaining_seconds, CHECK_INTERVAL)
         else:
             return time_until_tomorrow()
