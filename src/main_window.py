@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
             self.api_key = QLineEdit()
             self.api_key.setPlaceholderText("Paste your Hackatime API key here")
             self.api_key.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
+            self.api_key.setText(settings.data["hackatime_api_key"])
             
             self.required_minutes = QSpinBox()
             self.required_minutes.setRange(1, 720)

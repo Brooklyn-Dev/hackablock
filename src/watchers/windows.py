@@ -35,7 +35,7 @@ def watch_processes(shutdown_event: threading.Event, requirement_met_event: thre
                         new_proc.Terminate()
                         timestamped_print(f"🚫 Blocked {new_proc.Name} from opening")
                         if notifier:
-                            notifier.notify(f"🚫 Blocked {new_proc.Name} from opening", f"Code a total of {settings.data["required_minutes"]} minutes to unblock apps.")
+                            notifier.notify(f"🚫 Blocked {new_proc.Name} from opening", f"Code a total of {settings.data["minutes_required"]} minutes to unblock apps.")
                         logging.info(f"Terminated process: {new_proc.Name} (pid={new_proc.ProcessId})")
                     except (OSError, AttributeError) as e:
                         logging.warning(f"Could not terminate {new_proc.Name}: {e}")
