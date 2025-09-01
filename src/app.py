@@ -109,7 +109,9 @@ class App:
 
     def _start_tray(self) -> None:
         self.tray = Tray(
-            on_show_progress=self._handle_show_main_window,
+            on_show_progress=self._handle_show_progress_tab,
+            on_show_blocked_apps=self._handle_show_blocked_apps_tab,
+            on_show_settings=self._handle_show_settings_tab,
             on_show_logs=self._handle_show_logs,
             on_quit=self._handle_quit
         )
@@ -167,11 +169,19 @@ class App:
         self.requirement_met_event.clear()
         
     # EVENT HANDLERS
-    def _handle_show_main_window(self) -> None:
+    def _handle_show_progress_tab(self) -> None:
         if self.main_window:
-            QTimer.singleShot(0, self._show_main_window_thread)
+            QTimer.singleShot(0, lambda: self._show_main_window_thread(0))
+            
+    def _handle_show_blocked_apps_tab(self) -> None:
+        if self.main_window:
+            QTimer.singleShot(0, lambda: self._show_main_window_thread(1))
+            
+    def _handle_show_settings_tab(self) -> None:
+        if self.main_window:
+            QTimer.singleShot(0, lambda: self._show_main_window_thread(2))
         
-    def _show_main_window_thread(self) -> None:
+    def _show_main_window_thread(self, tab_index: int | None) -> None:
         if self.main_window:
             try:
                 seconds = self._get_seconds_coded()
@@ -179,9 +189,7 @@ class App:
             except HackatimeError as e:
                 self._handle_fetch_error(e)
             
-            self.main_window.show()
-            self.main_window.raise_()
-            self.main_window.activateWindow()
+            self.main_window.show_window(tab_index)
         else:
             timestamped_print("⚠️ Main window is not available")
     

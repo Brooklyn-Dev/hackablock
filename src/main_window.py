@@ -27,12 +27,12 @@ class MainWindow(QMainWindow):
                 
         layout = QVBoxLayout()
         
-        tabs = QTabWidget()
-        tabs.addTab(self._create_progress_tab(), "Progress")
-        tabs.addTab(self._create_blocked_apps_tab(), "Blocked Apps")
-        tabs.addTab(self._create_settings_tab(), "Settings")
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self._create_progress_tab(), "Progress")
+        self.tabs.addTab(self._create_blocked_apps_tab(), "Blocked Apps")
+        self.tabs.addTab(self._create_settings_tab(), "Settings")
     
-        layout.addWidget(tabs)
+        layout.addWidget(self.tabs)
         central_widget.setLayout(layout)
         
         if self.on_refresh:
@@ -173,6 +173,14 @@ class MainWindow(QMainWindow):
             self.blocked_list.takeItem(self.blocked_list.row(item))
             settings.data["blocked_apps"].remove(item.text())
         settings.save()
+    
+    def show_window(self, tab_index: int | None) -> None:
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        
+        if tab_index is not None:
+            self.tabs.setCurrentIndex(tab_index)
     
     def update_progress(self, seconds: int) -> None:
         self.current_seconds = seconds

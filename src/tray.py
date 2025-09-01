@@ -7,12 +7,16 @@ class Tray(QSystemTrayIcon):
     def __init__(
         self,
         on_show_progress: Callable | None = None,
+        on_show_blocked_apps: Callable | None = None,
+        on_show_settings: Callable | None = None,
         on_show_logs: Callable | None = None,
         on_quit: Callable | None = None
     ) -> None:
         super().__init__(QIcon("./assets/favicon.ico"))
         
         self._on_show_progress = on_show_progress
+        self._on_show_blocked_apps = on_show_blocked_apps
+        self._on_show_settings = on_show_settings
         self._on_show_logs = on_show_logs
         self._on_quit = on_quit
         
@@ -28,8 +32,14 @@ class Tray(QSystemTrayIcon):
     def _create_menu(self) -> QMenu:
         menu = QMenu()
         
-        if show_progress_action := menu.addAction("📊 Show Progress"):
+        if show_progress_action := menu.addAction("📊 Progress"):
             show_progress_action.triggered.connect(self._on_show_progress)
+            
+        if show_blocked_apps_action := menu.addAction("🚫 Blocked Apps"):
+            show_blocked_apps_action.triggered.connect(self._on_show_blocked_apps)
+            
+        if show_settings_action := menu.addAction("⚙️ Settings"):
+            show_settings_action.triggered.connect(self._on_show_settings)
         
         if show_logs_action := menu.addAction("📂 Show Logs"):
             show_logs_action.triggered.connect(self._on_show_logs)
