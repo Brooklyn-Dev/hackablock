@@ -19,6 +19,7 @@ DEFAULTS: Dict = {
 
 class Settings:
     def __init__(self) -> None:
+        self.data = DEFAULTS.copy()
         self._load()
     
     def save(self) -> None:
