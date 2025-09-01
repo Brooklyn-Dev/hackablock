@@ -10,7 +10,6 @@ from PySide6.QtCore import QCoreApplication, QTimer, QObject, Signal
 from PySide6.QtWidgets import QApplication
 
 from .coding_time_tracker import CodingTimeTracker
-from .config import BLOCKED_APPS
 from .hackatime_error import HackatimeError
 from .notifier import Notifier
 from .main_window import MainWindow
@@ -78,8 +77,13 @@ class App:
         else:
             self.qt_app = QApplication.instance()
             
-        self.main_window = MainWindow(on_refresh=self._handle_refresh_progress)
+        self.main_window = MainWindow(
+            requirement_met_event=self.requirement_met_event,
+            on_refresh=self._handle_refresh_progress
+        )
         self.main_window.hide()
+        
+        self.main_window.block_requested.connect(self._block_running_processes)
         
     def _start_qt_app(self) -> None:
         if self.qt_app:
@@ -250,7 +254,7 @@ class App:
         for proc in psutil.process_iter(["pid", "name"]):
             try:
                 name, pid = proc.info["name"], proc.info["pid"]
-                if name and name.lower() in BLOCKED_APPS:         
+                if name and name.lower() in settings.data["blocked_apps"]:         
                     logging.info(f"Killing running process: {name} (pid={pid})")
                     proc.kill()
                     killed_apps.add(name)

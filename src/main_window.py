@@ -1,17 +1,20 @@
+import threading
 from typing import Callable
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCloseEvent, QIcon, QFont
-from PySide6.QtWidgets import QGroupBox, QLabel, QLineEdit, QMainWindow, QProgressBar, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGroupBox,QHBoxLayout,  QLabel, QLineEdit, QListWidget, QMainWindow, QProgressBar, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget
 
 from .settings import settings
 from .utils import format_time
 
 class MainWindow(QMainWindow):
     refresh_requested = Signal()
+    block_requested = Signal()
     
-    def __init__(self, on_refresh: Callable | None) -> None:
+    def __init__(self, requirement_met_event: threading.Event, on_refresh: Callable | None) -> None:
         super().__init__()
+        self.requirement_met_event = requirement_met_event
         self.on_refresh = on_refresh
         self.current_seconds = 0
         
@@ -26,6 +29,7 @@ class MainWindow(QMainWindow):
         
         tabs = QTabWidget()
         tabs.addTab(self._create_progress_tab(), "Progress")
+        tabs.addTab(self._create_blocked_apps_tab(), "Blocked Apps")
         tabs.addTab(self._create_settings_tab(), "Settings")
     
         layout.addWidget(tabs)
@@ -62,6 +66,39 @@ class MainWindow(QMainWindow):
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(lambda: self.refresh_requested.emit())
         layout.addWidget(refresh_btn)
+        
+        tab.setLayout(layout)
+        return tab
+    
+    def _create_blocked_apps_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+        
+        title = QLabel("Blocked Apps")
+        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        self.blocked_list = QListWidget()
+        self.blocked_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        for app in settings.data["blocked_apps"]:
+            self.blocked_list.addItem(app)
+        layout.addWidget(self.blocked_list)
+        
+        input_layout =  QHBoxLayout()
+        self.new_app_input = QLineEdit()
+        self.new_app_input.setPlaceholderText("Enter process name (e.g., steam.exe)")
+        add_btn = QPushButton("Add")
+        add_btn.clicked.connect(self._add_blocked_app)
+        input_layout.addWidget(self.new_app_input)
+        input_layout.addWidget(add_btn)
+        layout.addLayout(input_layout)
+        
+        delete_btn = QPushButton("Delete selected")
+        delete_btn.clicked.connect(self._delete_selected_blocked_apps)
+        layout.addWidget(delete_btn)
         
         tab.setLayout(layout)
         return tab
@@ -115,6 +152,27 @@ class MainWindow(QMainWindow):
         
         if self.on_refresh:
             self.on_refresh()
+    
+    def _add_blocked_app(self) -> None:
+        if not (new_app := self.new_app_input.text().strip()):
+            return
+
+        blocked_apps = settings.data.get("blocked_apps", [])
+        if new_app.lower() not in [a.lower() for a in blocked_apps]:
+            blocked_apps.append(new_app)
+            settings.update_setting("blocked_apps", blocked_apps)
+            settings.save()
+            self.blocked_list.addItem(new_app)
+            self.new_app_input.clear()
+        
+            if not self.requirement_met_event.is_set():
+                self.block_requested.emit()
+    
+    def _delete_selected_blocked_apps(self) -> None:
+        for item in self.blocked_list.selectedItems():
+            self.blocked_list.takeItem(self.blocked_list.row(item))
+            settings.data["blocked_apps"].remove(item.text())
+        settings.save()
     
     def update_progress(self, seconds: int) -> None:
         self.current_seconds = seconds

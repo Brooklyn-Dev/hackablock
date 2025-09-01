@@ -10,7 +10,6 @@ else:
     pythoncom = None
     wmi = None
 
-from ..config import BLOCKED_APPS
 from ..notifier import Notifier
 from ..settings import settings
 from ..utils import timestamped_print
@@ -30,7 +29,7 @@ def watch_processes(shutdown_event: threading.Event, requirement_met_event: thre
             try:
                 new_proc = proc_watcher(timeout_ms=3000)
                 
-                if not shutdown_event.is_set() and new_proc.Name.lower() in BLOCKED_APPS:
+                if not shutdown_event.is_set() and new_proc.Name.lower() in settings.data["blocked_apps"]:
                     try:
                         new_proc.Terminate()
                         timestamped_print(f"🚫 Blocked {new_proc.Name} from opening")

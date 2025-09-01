@@ -13,6 +13,7 @@ VALIDATION_RULES: Dict[str, Callable] = {
 
 DEFAULTS: Dict = {
     "hackatime_api_key": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+    "blocked_apps": ["steam.exe"],
     "minutes_required": 60,
 }
 
