@@ -46,12 +46,13 @@ python -m src.main
 
 ## Usage
 
-This program requires an internet connection to work since coding time data is fetched from an API.
+You must enter your hackatime API key for the program to work. Hence, this program requires an internet connection to fetch coding time data.
 
 -   Open GUI and view logs using the system tray icon
 -   Track coding time in Progress tab
 -   Set apps to block in Blocked Apps tab
--   Configure API key and required time in Settings tab 
+-   Configure API key and required time in Settings tab
+-   View logs to help troubleshoot any issues
 
 ## Like this project?
 
